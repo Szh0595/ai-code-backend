@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    active: local
   application:
     name: yu-ai-code-backend
   # mysql
