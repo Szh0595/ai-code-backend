@@ -1,5 +1,8 @@
 package com.szh.aicodebackend.model.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum ChatHistoryMessageTypeEnum {
 
     USER("用户","user"),

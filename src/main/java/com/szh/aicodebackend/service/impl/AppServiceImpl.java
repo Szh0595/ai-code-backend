@@ -15,12 +15,15 @@ import com.szh.aicodebackend.model.dto.app.AppQueryRequest;
 import com.szh.aicodebackend.model.entity.App;
 import com.szh.aicodebackend.mapper.AppMapper;
 import com.szh.aicodebackend.model.entity.User;
+import com.szh.aicodebackend.model.enums.ChatHistoryMessageTypeEnum;
 import com.szh.aicodebackend.model.enums.CodeGenTypeEnum;
 import com.szh.aicodebackend.model.vo.AppVO;
 import com.szh.aicodebackend.model.vo.UserVO;
 import com.szh.aicodebackend.service.AppService;
+import com.szh.aicodebackend.service.ChatHistoryService;
 import com.szh.aicodebackend.service.UserService;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -35,6 +38,7 @@ import java.util.stream.Collectors;
  * @author Lenovo
  */
 @Service
+@Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppService{
 
 
@@ -43,6 +47,9 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
 
     @Resource
     private AiCodeGeneratorFacade aiCodeGeneratorFacade;
+
+    @Resource
+    private ChatHistoryService chatHistoryService;
 
     @Override
     public AppVO getAppVO(App app) {
@@ -132,11 +139,50 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App>  implements AppS
         String codeGenType = app.getCodeGenType();
         CodeGenTypeEnum codeGenTypeEnum = CodeGenTypeEnum.getEnumByValue(codeGenType);
         ThrowUtils.throwIf(codeGenTypeEnum == null, ErrorCode.PARAMS_ERROR, "代码生成类型错误");
-        return switch (codeGenTypeEnum) {
-            case HTML -> aiCodeGeneratorFacade.generateAndAaveHtmlCodeStream(userMessage, appId);
-            case MULTI_FILE -> aiCodeGeneratorFacade.generateAndAaveMultiFileCodeStream(userMessage, appId);
-            default -> Flux.empty();
-        };
+        //保存历史记录
+        boolean result = chatHistoryService.addChatMessage(appId, userMessage, ChatHistoryMessageTypeEnum.USER.getValue(), loginUser.getId());
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "保存历史记录失败");
+        //AI生成代码
+        Flux<String> contentFlux = Flux.empty();
+        switch (codeGenTypeEnum) {
+            case HTML -> {
+                contentFlux = aiCodeGeneratorFacade.generateAndAaveHtmlCodeStream(userMessage, appId);
+            }
+            case MULTI_FILE -> {
+                contentFlux = aiCodeGeneratorFacade.generateAndAaveMultiFileCodeStream(userMessage, appId);
+            }
+        }
+        StringBuilder aiResponseBuilder = new StringBuilder();
+        return contentFlux
+                .map(chunk -> {
+                    // 收集AI响应内容
+                    aiResponseBuilder.append(chunk);
+                    return chunk;
+                })
+                .doOnComplete(() -> {
+                    // 流式响应完成后，添加AI消息到对话历史
+                    String aiResponse = aiResponseBuilder.toString();
+                    if (StrUtil.isNotBlank(aiResponse)) {
+                        chatHistoryService.addChatMessage(appId, aiResponse, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                    }
+                })
+                .doOnError(error -> {
+                    // 如果AI回复失败，也要记录错误消息
+                    String errorMessage = "AI回复失败: " + error.getMessage();
+                    chatHistoryService.addChatMessage(appId, errorMessage, ChatHistoryMessageTypeEnum.AI.getValue(), loginUser.getId());
+                });
+    }
+
+    @Override
+    public boolean removeById(Long id) {
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR, "应用Id不合法");
+        try {
+            //关联的聊天记录
+            boolean result = chatHistoryService.deleteById(id);
+        } catch (Exception e) {
+            log.error("删除聊天记录失败: " + e.getMessage());
+        }
+        return super.removeById(id);
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.szh.aicodebackend.core;
 
 import com.szh.aicodebackend.ai.AiCodeGeneratorService;
+import com.szh.aicodebackend.ai.AiCodeGeneratorServiceFactory;
 import com.szh.aicodebackend.ai.model.HtmlCodeResult;
 import com.szh.aicodebackend.ai.model.MultiFileCodeResult;
 import com.szh.aicodebackend.exception.BusinessException;
@@ -24,7 +25,7 @@ import java.io.File;
 public class AiCodeGeneratorFacade {
 
     @Resource
-    private AiCodeGeneratorService aiCodeGeneratorService;
+    private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
 
     /**
      * 生成代码并保存
@@ -49,6 +50,7 @@ public class AiCodeGeneratorFacade {
      * @return 生成的HTML代码文件
      */
     public File generateAndAaveHtmlCode(String userMessage, Long appId) {
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         HtmlCodeResult htmlCodeResult = aiCodeGeneratorService.generateHtmlCode(userMessage);
         return CodeFileSaver.saveHtmlCodeResult(htmlCodeResult, appId);
     }
@@ -60,6 +62,7 @@ public class AiCodeGeneratorFacade {
      * @return 生成的多文件代码文件
      */
     public File generateAndAaveMultiFileCode(String userMessage, Long appId) {
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         MultiFileCodeResult multiFileCodeResult = aiCodeGeneratorService.generateMultiFileCode(userMessage);
         return CodeFileSaver.saveMultiFileCodeResult(multiFileCodeResult, appId);
     }
@@ -87,6 +90,7 @@ public class AiCodeGeneratorFacade {
      * @return 生成的HTML代码文件
      */
     public Flux<String> generateAndAaveHtmlCodeStream(String userMessage, Long appId) {
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         Flux<String> result = aiCodeGeneratorService.generateHtmlCodeStream(userMessage);
         //流式返回生成代码完成后再保存代码
         StringBuilder codeBuilder = new StringBuilder();
@@ -116,6 +120,7 @@ public class AiCodeGeneratorFacade {
      * @return 生成的多文件代码文件
      */
     public Flux<String> generateAndAaveMultiFileCodeStream(String userMessage, Long appId) {
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         Flux<String> result = aiCodeGeneratorService.generateMultiFileCodeStream(userMessage);
         //流式返回生成代码完成后再保存代码
         StringBuilder codeBuilder = new StringBuilder();
